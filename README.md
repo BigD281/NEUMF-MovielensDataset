@@ -51,7 +51,7 @@ pip install torch pandas numpy flask pickle-mixin
 
 ```
 
-### 2. Tiền xử lý & Huấn luyện mô hình
+### 2. Tiền xử lý & Huấn luyện mô hình( Đã sẵn có vậy nên không cần nữa)
 
 Chạy kịch bản huấn luyện để xử lý dữ liệu, chia tập theo phương pháp `Leave-One-Out`, áp dụng `Negative Sampling` và huấn luyện mô hình NeuMF:
 
