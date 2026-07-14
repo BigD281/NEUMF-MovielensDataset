@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuMF · Hệ Thống Gợi Ý Phim </title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Syne', 'sans-serif'],
+            body:    ['DM Sans', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              950: '#020617',
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+            },
+            indigo: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' },
+            violet: { 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6' },
+            rose:   { 400: '#fb7185' },
+            amber:  { 400: '#fbbf24' },
+            cyan:   { 400: '#22d3ee' },
+            emerald:{ 400: '#34d399' },
+          },
+          backdropBlur: { xs: '2px' },
+          animation: {
+            'fade-up':    'fadeUp 0.5s ease forwards',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
+            'bar-fill':   'barFill 1.2s cubic-bezier(0.22,1,0.36,1) forwards',
+            'toast-in':   'toastIn 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards',
+            'toast-out':  'toastOut 0.3s ease forwards',
+            'shimmer':    'shimmer 1.8s infinite',
+            'float':      'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeUp: {
+              '0%':   { opacity: '0', transform: 'translateY(22px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            barFill: {
+              '0%':   { width: '0%' },
+              '100%': { width: 'var(--bar-width)' },
+            },
+            toastIn: {
+              '0%':   { opacity: '0', transform: 'translateX(80px) scale(0.9)' },
+              '100%': { opacity: '1', transform: 'translateX(0) scale(1)' },
+            },
+            toastOut: {
+              '0%':   { opacity: '1', transform: 'translateX(0)' },
+              '100%': { opacity: '0', transform: 'translateX(80px)' },
+            },
+            shimmer: {
+              '0%':   { backgroundPosition: '-700px 0' },
+              '100%': { backgroundPosition: '700px 0' },
+            },
+            float: {
+              '0%,100%': { transform: 'translateY(0px)' },
+              '50%':     { transform: 'translateY(-14px)' },
+            },
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #020617;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .mesh-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(79,70,229,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(167,139,250,0.14) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(34,211,238,0.06) 0%, transparent 60%),
+        #020617;
+    }
+    .glass {
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border: 1px solid rgba(148,163,184,0.10);
+      border-radius: 20px;
+    }
+    .glass-light {
+      background: rgba(30, 41, 59, 0.40);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(148,163,184,0.08);
+      border-radius: 14px;
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.70);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(99,102,241,0.30);
+      border-radius: 12px;
+      color: #e2e8f0;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .glass-input:focus {
+      outline: none;
+      border-color: rgba(99,102,241,0.75);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15), 0 0 20px rgba(99,102,241,0.12);
+    }
+    .btn-glow {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      cursor: pointer;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      transition: transform 0.2s, box-shadow 0.25s, filter 0.2s;
+      box-shadow: 0 4px 20px rgba(79,70,229,0.35);
+    }
+    .btn-glow:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(79,70,229,0.55), 0 0 0 1px rgba(167,139,250,0.25);
+      filter: brightness(1.08);
+    }
+    .btn-glow:active { transform: translateY(0); }
+    .btn-glow:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .rank-1 { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #000; }
+    .rank-2 { background: linear-gradient(135deg, #94a3b8, #cbd5e1); color: #000; }
+    .rank-3 { background: linear-gradient(135deg, #cd7c2f, #ea8c3a); color: #fff; }
+    .rank-n { background: rgba(99,102,241,0.20); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.30); }
+
+    .progress-track {
+      background: rgba(51,65,85,0.70);
+      border-radius: 99px;
+      overflow: hidden;
+      height: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+    }
+    .genre-tag {
+      font-size: 0.68rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.22);
+      color: #a5b4fc;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .genre-tag-select {
+      cursor: pointer;
+    }
+    .genre-tag-select.active { 
+      background: #4f46e5 !important; 
+      border-color: #4f46e5 !important; 
+      color: white !important; 
+    }
+    .insight-box {
+      background: rgba(167,139,250,0.06);
+      border-left: 2px solid rgba(167,139,250,0.40);
+      border-radius: 0 8px 8px 0;
+      padding: 8px 12px;
+      margin-top: 10px;
+    }
+    .skeleton {
+      background: linear-gradient(90deg, rgba(30,41,59,0.5) 0%, rgba(51,65,85,0.7) 50%, rgba(30,41,59,0.5) 100%);
+      background-size: 700px 100%;
+      animation: shimmer 1.8s infinite;
+      border-radius: 10px;
+    }
+    .toast {
+      position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
+      min-width: 280px; max-width: 380px; padding: 14px 18px; border-radius: 14px;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      display: flex; align-items: flex-start; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .toast.error   { background: rgba(153,27,27,0.75); border: 1px solid rgba(248,113,113,0.3); }
+    .toast.success { background: rgba(6,78,59,0.75);   border: 1px solid rgba(52,211,153,0.3); }
+    .toast.info    { background: rgba(30,27,75,0.75);  border: 1px solid rgba(99,102,241,0.4); }
+
+    .score-text {
+      background: linear-gradient(135deg, #818cf8, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .orb { position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; filter: blur(80px); }
+    .card-enter { opacity: 0; transform: translateY(20px); }
+    .card-visible { animation: fadeUp 0.5s ease forwards; }
+  </style>
+</head>
+
+<body class="text-slate-200">
+
+  <div class="mesh-bg"></div>
+  <div class="orb w-96 h-96 bg-indigo-600 opacity-10" style="top:-8rem;left:-8rem;"></div>
+  <div class="orb w-80 h-80 bg-violet-500 opacity-8" style="bottom:-6rem;right:-6rem;"></div>
+
+  <div id="toast-container"></div>
+
+  <header class="relative z-10 pt-10 pb-6 px-6">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <i data-lucide="brain-circuit" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <span class="font-display font-800 text-lg tracking-tight text-white">NeuMF</span>
+        </div>
+      </div>
+      <div id="status-pill" class="glass-light px-4 py-2 flex items-center gap-2 text-xs text-slate-400">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-600 inline-block" id="status-dot"></span>
+        <span id="status-text">Đang kết nối…</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="relative z-10 px-6 pt-4 pb-6">
+    <div class="max-w-5xl mx-auto text-center">
+      <div class="inline-flex items-center gap-2 glass-light px-4 py-1.5 text-xs text-violet-300 mb-5">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        Neural Collaborative Filtering 
+      </div>
+      <h1 class="font-display text-4xl md:text-5xl font-800 text-white leading-tight mb-4">
+        Hệ Thống Gợi Ý Phim<br />
+      </h1>
+      <p class="text-slate-400 text-base max-w-xl mx-auto mb-8 leading-relaxed">
+        Kiến trúc <strong class="text-violet-300">NeuMF</strong> kết hợp <em>GMF tuyến tính</em> và <em>MLP phi tuyến tính</em> để mô phỏng sở thích phức tạp và cá nhân hóa trải nghiệm.
+      </p>
+
+      <div class="flex justify-center mb-6">
+        <div class="glass-light p-1.5 flex gap-2 rounded-xl">
+          <button id="tab-id-mode" onclick="switchMode('id-mode')" class="px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 bg-indigo-600/90 text-white shadow-md">
+            <i data-lucide="user" class="w-3.5 h-3.5 inline mr-1"></i> Tra Cứu User ID
+          </button>
+          <button id="tab-cold-mode" onclick="switchMode('cold-mode')" class="px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 text-slate-400 hover:text-slate-200">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 inline mr-1"></i> User Mới (Chọn Thể Loại)
+          </button>
+        </div>
+      </div>
+
+      <div id="panel-id-mode" class="max-w-lg mx-auto block">
+        <div class="glass p-3 flex gap-3 items-center shadow-xl shadow-black/30">
+          <div class="flex-1 relative">
+            <i data-lucide="user" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            <input id="user-input" type="number" min="1" placeholder="Nhập User ID (ví dụ: 1, 45, 120...)" class="glass-input w-full pl-9 pr-4 py-3 text-sm" />
+          </div>
+          <button id="search-btn" class="btn-glow px-5 py-3 text-sm flex items-center gap-2 min-w-[120px] justify-center" onclick="fetchRecommendations()">
+            <span id="btn-icon"><i data-lucide="zap" class="w-4 h-4"></i></span>
+            <span id="btn-text">Gợi Ý</span>
+          </button>
+        </div>
+
+        <div class="mt-3 flex items-center justify-center gap-2 flex-wrap" id="sample-hint">
+          <span class="text-slate-600 text-xs">Thử nhanh:</span>
+          {% if sample_users %}
+            {% for uid in sample_users %}
+            <button onclick="quickUser('{{ uid }}')" class="text-xs px-2.5 py-1 rounded-lg glass-light text-slate-400 hover:text-violet-300 hover:border-violet-500/30 transition-colors duration-200">
+              ID&nbsp;{{ uid }}
+            </button>
+            {% endfor %}
+          {% else %}
+            <button onclick="quickUser('1')" class="text-xs px-2.5 py-1 rounded-lg glass-light text-slate-400 hover:text-violet-300 hover:border-violet-500/30 transition-colors duration-200">ID 1</button>
+            <button onclick="quickUser('45')" class="text-xs px-2.5 py-1 rounded-lg glass-light text-slate-400 hover:text-violet-300 hover:border-violet-500/30 transition-colors duration-200">ID 45</button>
+          {% endif %}
+        </div>
+      </div>
+
+      <div id="panel-cold-mode" class="max-w-xl mx-auto hidden animate-fade-up">
+        <div class="glass p-5 shadow-xl text-left">
+          <h3 class="font-display font-700 text-sm text-violet-300 mb-2 flex items-center gap-2">
+            <i data-lucide="filter"></i> Chọn thể loại bạn quan tâm:
+          </h3>
+          <p class="text-slate-500 text-xs mb-6">Hệ thống sẽ bóc tách các nhãn thể loại bạn chọn để tìm kiếm hồ sơ người dùng tương đồng nhất trong không gian NeuMF.</p>
+          
+          <div id="genre-tag-container" class="flex flex-wrap gap-2 mb-6">
+              </div>
+
+          <button id="cold-submit-btn" onclick="fetchColdStartRecommendations()" class="btn-glow w-full py-3 text-sm flex items-center justify-center gap-2">
+            <i data-lucide="wand2" class="w-4 h-4"></i> Tạo Gợi Ý Cá Nhân Hóa Động
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="relative z-10 px-6 pb-8">
+    <div class="max-w-5xl mx-auto">
+      <div class="glass p-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div>
+          <div class="font-display text-2xl font-700 score-text" id="stat-users">0</div>
+          <div class="text-slate-500 text-xs mt-0.5">Người dùng gốc</div>
+        </div>
+        <div>
+          <div class="font-display text-2xl font-700 score-text" id="stat-items">0</div>
+          <div class="text-slate-500 text-xs mt-0.5">Kho phim</div>
+        </div>
+        <div>
+          <div class="font-display text-2xl font-700 text-emerald-400" id="stat-embed">0</div>
+          <div class="text-slate-500 text-xs mt-0.5">Chiều Embedding</div>
+        </div>
+        <div>
+          <div class="font-display text-2xl font-700 text-cyan-400" id="stat-device">CPU</div>
+          <div class="text-slate-500 text-xs mt-0.5">Thiết bị</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="relative z-10 px-6 pb-6 hidden" id="genre-distribution-section">
+    <div class="max-w-5xl mx-auto">
+      <div class="glass p-6">
+        <h3 class="font-display text-sm text-slate-300 font-700 mb-4 flex items-center gap-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-violet-400"></i>
+          Phân phối thể loại tương tác (Profile)
+        </h3>
+        <div id="distribution-bars" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="relative z-10 px-6 pb-20">
+    <div class="max-w-5xl mx-auto" id="results-wrapper">
+
+      <div id="empty-state" class="text-center py-20 opacity-60">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl glass flex items-center justify-center animate-float">
+          <i data-lucide="film" class="w-8 h-8 text-violet-400"></i>
+        </div>
+        <p class="font-display text-slate-500 text-sm">Nhập thông tin hoặc chọn thể loại để xem gợi ý phim từ mô hình NeuMF</p>
+      </div>
+
+      <div id="skeleton-list" class="hidden space-y-4">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="skeleton h-5 w-40 rounded"></div>
+          <div class="skeleton h-5 w-24 rounded"></div>
+        </div>
+        <div class="glass p-5"><div class="skeleton h-20 w-full rounded"></div></div>
+        <div class="glass p-5"><div class="skeleton h-20 w-full rounded"></div></div>
+      </div>
+
+      <div id="result-header" class="hidden mb-6 flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 class="font-display text-xl text-white font-700">
+            Khai phá mô hình · <span id="header-uid" class="text-violet-400">—</span>
+          </h2>
+          <p class="text-slate-500 text-xs mt-0.5 mb-2" id="header-meta">—</p>
+        </div>
+        <div class="glass-light px-3 py-1.5 flex items-center gap-2 text-xs text-slate-400 self-start">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span id="header-time">—</span>
+        </div>
+      </div>
+
+      <div id="results-content" class="hidden">
+          <div id="split-layout" class="grid md:grid-cols-2 gap-8 hidden">
+              <div>
+                  <h3 class="font-display text-lg text-indigo-300 font-600 mb-4 flex items-center gap-2 border-b border-slate-800/60 pb-2">
+                      <i data-lucide="target" class="w-5 h-5 text-indigo-400"></i> Sở thích cốt lõi (Core Matches)
+                  </h3>
+                  <div id="core-container" class="space-y-4 mb-10"></div>
+              </div>
+
+              <div>
+                  <h3 class="font-display text-lg text-emerald-300 font-600 mb-4 flex items-center gap-2 border-b border-slate-800/60 pb-2">
+                      <i data-lucide="compass" class="w-5 h-5 text-emerald-400"></i> Khám phá mới (Discovery)
+                  </h3>
+                  <div id="discovery-container" class="space-y-4 mb-10"></div>
+              </div>
+          </div>
+
+          <div id="trending-layout" class="max-w-2xl mx-auto hidden">
+              <h3 class="font-display text-lg text-amber-300 font-600 mb-4 flex items-center gap-2 border-b border-slate-800/60 pb-2">
+                  <i data-lucide="flame" class="w-5 h-5 text-amber-400 animate-pulse"></i> Phim Xu Hướng Hot (Trending)
+              </h3>
+              <div id="trending-container" class="space-y-4 mb-10"></div>
+          </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="relative z-10 pb-8 px-6">
+    <div class="max-w-5xl mx-auto text-center text-slate-700 text-xs">
+      NeuMF · Neural Matrix Factorisation · Explainable Recommendation System
+    </div>
+  </footer>
+
+<script>
+// BIẾN LƯU TRỮ PHỤC VỤ COLD START VÀ VIỆC CẬP NHẬT GIAO DIỆN
+let coldStartState = {
+    selectedGenres: [],
+    seenInSession: []
+};
+
+// Khai báo sẵn các thể loại cơ bản (có thể lấy động từ backend nhưng hardcode ở đây để giao diện hiển thị ngay lập tức)
+const systemGenres = [
+  "Action", "Adventure", "Animation", "Children", "Comedy", "Crime", "Documentary", 
+  "Drama", "Fantasy", "Film-Noir", "Horror", "IMAX", "Musical", "Mystery", 
+  "Romance", "Sci-Fi", "Thriller", "War", "Western"
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  loadStats();
+  initGenreTags();
+  
+  document.getElementById('user-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') fetchRecommendations();
+  });
+});
+
+function initGenreTags() {
+    const container = document.getElementById('genre-tag-container');
+    if(!container) return;
+    container.innerHTML = systemGenres.map(genre => `
+        <button type="button" onclick="toggleGenre(this)" 
+                class="genre-tag-select px-3 py-1.5 rounded-full border border-slate-700 bg-slate-800 text-xs text-slate-300 transition-all duration-200">
+            ${genre}
+        </button>
+    `).join('');
+}
+
+function toggleGenre(btn) {
+    btn.classList.toggle('active');
+    btn.classList.toggle('bg-indigo-600');
+    btn.classList.toggle('border-indigo-600');
+    btn.classList.toggle('text-white');
+    btn.classList.toggle('bg-slate-800');
+}
+
+function switchMode(mode) {
+  const tabId = document.getElementById('tab-id-mode');
+  const tabCold = document.getElementById('tab-cold-mode');
+  const panelId = document.getElementById('panel-id-mode');
+  const panelCold = document.getElementById('panel-cold-mode');
+
+  if (mode === 'id-mode') {
+    tabId.className = "px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 bg-indigo-600/90 text-white shadow-md";
+    tabCold.className = "px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 text-slate-400 hover:text-slate-200";
+    panelId.classList.replace('hidden', 'block');
+    panelCold.classList.replace('block', 'hidden');
+  } else {
+    tabCold.className = "px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 bg-indigo-600/90 text-white shadow-md";
+    tabId.className = "px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all duration-200 text-slate-400 hover:text-slate-200";
+    panelCold.classList.replace('hidden', 'block');
+    panelId.classList.replace('block', 'hidden');
+  }
+  hideResults();
+  document.getElementById('empty-state').className = 'text-center py-20 opacity-60';
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/stats');
+    const d = await r.json();
+    document.getElementById('stat-users').textContent  = d.n_users?.toLocaleString('vi-VN') || '138,493';
+    document.getElementById('stat-items').textContent  = d.n_items?.toLocaleString('vi-VN') || '27,278';
+    document.getElementById('stat-embed').textContent  = d.embed_dim || '64';
+    document.getElementById('stat-device').textContent = (d.device || 'CPU').toUpperCase();
+
+    const dot = document.getElementById('status-dot');
+    dot.classList.replace('bg-slate-600','bg-emerald-400');
+    dot.style.boxShadow = '0 0 6px #34d399';
+    document.getElementById('status-text').textContent = 'Model đã sẵn sàng';
+  } catch (e) {
+    console.error("Không thể tải Stats:", e);
+  }
+}
+
+function quickUser(id) {
+  document.getElementById('user-input').value = id;
+  fetchRecommendations();
+}
+
+// HÀM FETCH KẾT QUẢ GỐC (CHẾ ĐỘ USER ID CŨ)
+async function fetchRecommendations() {
+  const input  = document.getElementById('user-input');
+  const uid    = input.value.trim();
+
+  if (!uid || isNaN(uid) || Number(uid) < 1) {
+    showToast('error', 'User ID không hợp lệ', 'Vui lòng nhập một số nguyên dương hợp lệ.');
+    input.focus();
+    return;
+  }
+
+  setLoading(true, 'search-btn');
+  hideResults();
+  showSkeleton(true);
+
+  const t0 = performance.now();
+
+  try {
+    const res  = await fetch(`/api/recommend?user_id=${uid}`);
+    const data = await res.json();
+    
+    if (!res.ok) throw new Error(data.error || "Lỗi máy chủ không xác định");
+    
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    renderResults(data, `User #${uid}`, elapsed, false);
+
+  } catch (err) {
+    showToast('error', 'Lỗi hệ thống', err.message);
+    document.getElementById('skeleton-list').className = 'hidden';
+    document.getElementById('empty-state').className = 'text-center py-20 opacity-60';
+  } finally {
+    setLoading(false, 'search-btn');
+    showSkeleton(false);
+  }
+}
+
+// HÀM XỬ LÝ COLD START MỚI THEO TAGS GIAO DIỆN
+async function fetchColdStartRecommendations() {
+  const selectedButtons = document.querySelectorAll('.genre-tag-select.active');
+  if (selectedButtons.length === 0) {
+    showToast('error', 'Yêu cầu dữ liệu', 'Vui lòng chọn ít nhất 1 thể loại để bắt đầu.');
+    return;
+  }
+
+  setLoading(true, 'cold-submit-btn');
+  hideResults();
+  showSkeleton(true);
+
+  const t0 = performance.now();
+
+  // Bóc tách toàn bộ các thể loại phim được chọn
+  coldStartState.selectedGenres = Array.from(selectedButtons).map(btn => btn.innerText.trim());
+  
+  try {
+    // Truyền tags thẳng qua param để backend xử lý 
+    const tagsParam = encodeURIComponent(coldStartState.selectedGenres.join(','));
+    const res = await fetch(`/api/recommend?user_id=0&tags=${tagsParam}`);
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Không thể xử lý yêu cầu Cold Start qua mô hình đại diện.");
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    // Render kết quả, cờ true = đang dùng Cold Start
+    renderResults(data, "Hồ sơ Người dùng mới", elapsed, true);
+
+  } catch (err) {
+    showToast('error', 'Lỗi phân tích', err.message);
+    document.getElementById('skeleton-list').className = 'hidden';
+    document.getElementById('empty-state').className = 'text-center py-20 opacity-60';
+  } finally {
+    setLoading(false, 'cold-submit-btn');
+    showSkeleton(false);
+  }
+}
+
+function renderResults(data, userTitle, elapsed, isColdStart = false) {
+  const coreContainer = document.getElementById('core-container');
+  const discoveryContainer = document.getElementById('discovery-container');
+  const trendingContainer = document.getElementById('trending-container');
+  const distributionSection = document.getElementById('genre-distribution-section');
+  const distributionBars = document.getElementById('distribution-bars');
+  
+  const splitLayout = document.getElementById('split-layout');
+  const trendingLayout = document.getElementById('trending-layout');
+  
+  coreContainer.innerHTML = '';
+  discoveryContainer.innerHTML = '';
+  trendingContainer.innerHTML = '';
+  distributionBars.innerHTML = '';
+
+  document.getElementById('result-header').className = 'mb-6 flex items-center justify-between flex-wrap gap-4';
+  document.getElementById('results-content').className = 'block'; 
+  document.getElementById('header-uid').textContent = userTitle;
+  document.getElementById('empty-state').className = 'hidden';
+
+  if (isColdStart || data.is_cold_start) {
+      document.getElementById('header-meta').textContent = 
+        `Trạng thái: Khớp nối thành công người dùng đại diện có độ giao thoa sở thích lớn nhất (${data.match_reason || 'Độ tương đồng tag lớn nhất'}).`;
+  } else {
+      document.getElementById('header-meta').textContent =
+        `Đã phân tích tương tác gốc: ${(data.n_seen || 0).toLocaleString('vi-VN')} phim · ` +
+        `Quét tập ứng viên: ${(data.n_candidates || 0).toLocaleString('vi-VN')} bộ phim`;
+  }
+  document.getElementById('header-time').textContent = `Thời gian tính toán: ${elapsed}s`;
+
+  // LOGIC ẨN BẢNG PHÂN PHỐI THỂ LOẠI ĐỐI VỚI NGƯỜI DÙNG MỚI (COLD START)
+  if (!isColdStart && !data.is_cold_start && data.genre_distribution && data.genre_distribution.length > 0) {
+    distributionSection.className = 'relative z-10 px-6 pb-6 block';
+    data.genre_distribution.forEach(item => {
+      const barItem = document.createElement('div');
+      barItem.className = 'space-y-1';
+      barItem.innerHTML = `
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-300 font-medium">${escHtml(item.genre)}</span>
+          <span class="text-slate-400 font-mono">${item.percentage}% (${item.count} phim)</span>
+        </div>
+        <div class="progress-track bg-slate-800/80">
+          <div class="progress-fill" style="--bar-width: ${item.percentage}%; background: linear-gradient(90deg, #4f46e5, #8b5cf6); animation: barFill 1s ease forwards;"></div>
+        </div>
+      `;
+      distributionBars.appendChild(barItem);
+    });
+  } else {
+    // Nếu là Cold Start (hoặc mảng rỗng) thì giấu đi
+    distributionSection.className = 'hidden';
+  }
+
+  const recs = data.recommendations || [];
+  if (recs.length === 0) {
+    splitLayout.className = 'grid md:grid-cols-2 gap-8 block';
+    coreContainer.innerHTML = `<p class="text-slate-500 text-xs italic p-4">Không tìm thấy phim phù hợp.</p>`;
+    discoveryContainer.innerHTML = `<p class="text-slate-500 text-xs italic p-4">Không tìm thấy phim phù hợp.</p>`;
+    lucide.createIcons();
+    return;
+  }
+
+  let hasTrending = recs.some(r => r.group === 'Trending');
+
+  if (hasTrending && (!isColdStart)) {
+      splitLayout.className = 'hidden';
+      trendingLayout.className = 'max-w-2xl mx-auto block';
+      recs.forEach((rec, index) => {
+          const card = buildCard(rec, index, 0);
+          trendingContainer.appendChild(card);
+      });
+  } else {
+      trendingLayout.className = 'hidden';
+      splitLayout.className = 'grid md:grid-cols-2 gap-8 block';
+      
+      let coreCount = 0;
+      let discCount = 0;
+
+      recs.forEach((rec, index) => {
+          const card = buildCard(rec, index, 0);
+          if (rec.group === 'Core' || rec.group === 'GMF' || index % 2 === 0) {
+              coreContainer.appendChild(card);
+              coreCount++;
+          } else {
+              discoveryContainer.appendChild(card);
+              discCount++;
+          }
+      });
+
+      if (coreCount === 0) coreContainer.innerHTML = `<p class="text-slate-500 text-xs italic p-4">Không có phim khớp cụm sở thích chính đợt này.</p>`;
+      if (discCount === 0) discoveryContainer.innerHTML = `<p class="text-slate-500 text-xs italic p-4">Không có phim mang tính khám phá đột phá đợt này.</p>`;
+  }
+
+  lucide.createIcons();
+  showToast('success', 'Kết xuất hoàn tất', `Đã trả về danh sách gợi ý phim từ không gian phân rã thực thể mạng nơ-ron.`);
+}
+
+function buildCard(rec, index, uid) {
+  const pct = (rec.score * 100).toFixed(1);
+  const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : 'rank-n';
+  
+  let barColor = 'background: linear-gradient(90deg,#6366f1,#a78bfa)';
+  let scoreColor = 'text-violet-300';
+  
+  if (rec.group === 'Discovery' || rec.group === 'MLP' || index % 2 !== 0) {
+      barColor = 'background: linear-gradient(90deg,#10b981,#34d399)';
+      scoreColor = 'text-emerald-400';
+  }
+
+  const genres = rec.genres ? rec.genres.split('|').slice(0, 4) : ["Drama"];
+  const genreTags = genres.map(g => `<span class="genre-tag">${g}</span>`).join('');
+
+  const div = document.createElement('div');
+  div.className = 'glass p-5 card-enter card-visible group animate-fade-up relative transition-all duration-300 hover:border-slate-700/60';
+  div.style.animationDelay = `${index * 50}ms`;
+  div.id = `movie-card-${rec.movie_id}`;
+  
+  div.innerHTML = `
+    <div class="flex gap-4 items-start">
+      <div class="flex-shrink-0 pt-0.5">
+        <div class="w-12 h-12 rounded-xl ${rankClass} flex flex-col items-center justify-center font-display font-700 shadow-lg text-center leading-tight">
+          <span class="text-[0.6rem] font-500 opacity-70">RANK</span>
+          <span class="text-base leading-none">${index + 1}</span>
+        </div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <h3 class="font-display text-white text-base font-700 leading-snug truncate pr-2" title="${escHtml(rec.title)}">${escHtml(rec.title)}</h3>
+            <div class="text-slate-600 text-[0.7rem] font-mono mt-0.5">ID # ${rec.movie_id}</div>
+          </div>
+          
+          <button onclick="markAsWatchedTemporary(${uid}, ${rec.movie_id})" class="text-slate-400 hover:text-rose-400 glass-light px-2 py-1 text-[0.7rem] flex items-center gap-1 flex-shrink-0 transition-colors duration-200 shadow-sm">
+            <i data-lucide="eye-off" class="w-3 h-3"></i>
+            <span>Ẩn phim</span>
+          </button>
+        </div>
+        
+        <div class="flex flex-wrap gap-1.5 mt-2">${genreTags}</div>
+        <div class="mt-3 flex items-center gap-3">
+          <div class="flex-1">
+            <div class="flex items-baseline justify-between mb-1.5">
+             <span class="text-slate-500 text-[0.7rem]">Độ tương đồng NeuMF</span>
+             <span class="font-display font-700 text-xs ${scoreColor}">${pct}%</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${pct}%; ${barColor}"></div></div>
+          </div>
+        </div>
+        <div class="insight-box mt-3">
+            <p class="text-slate-400 text-xs leading-relaxed">${escHtml(rec.explanation || "Được đề xuất dựa trên phân tích tương quan từ không gian nhãn nhúng của người dùng đại diện tương đồng nhất.")}</p>
+        </div>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+// HÀM LỌC TẠM THỜI (ĐÃ ĐƯỢC CẬP NHẬT ĐỂ GỌI API & LÀM MỚI KẾT QUẢ)
+async function markAsWatchedTemporary(uid, movieId) {
+  const mode = document.getElementById('panel-id-mode').classList.contains('hidden') ? 'cold-mode' : 'id-mode';
+  
+  let currentUid = uid;
+  if (mode === 'id-mode') {
+    const input = document.getElementById('user-input');
+    if (input && input.value.trim()) {
+        currentUid = parseInt(input.value.trim());
+    }
+  } else {
+    currentUid = 0; // Là ID mặc định của Cold Start trên Backend
+  }
+
+  try {
+    const res = await fetch('/api/watch_temporary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUid, movie_id: movieId })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showToast('success', 'Đã cập nhật', `Đã ẩn phim #${movieId}. Hệ thống đang kết xuất lại Profile...`);
+      
+      // Bắt buộc gọi lại API Gợi ý để tải về biểu đồ + danh sách phim mới
+      if (mode === 'id-mode') {
+        fetchRecommendations();
+      } else {
+        coldStartState.seenInSession.push(movieId);
+        fetchColdStartRecommendations();
+      }
+    } else {
+      showToast('error', 'Lỗi xử lý', data.error || 'Không thể ẩn phim.');
+    }
+  } catch (err) {
+    showToast('error', 'Lỗi kết nối', 'Không thể kết nối đến máy chủ Backend.');
+  }
+}
+
+function setLoading(isLoading, btnId = 'search-btn') {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = isLoading;
+  
+  if (isLoading) {
+    btn.innerHTML = `<svg class="w-4 h-4 animate-spin inline-block mr-1" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /></svg> Đang tính…`;
+  } else {
+    if (btnId === 'search-btn') {
+      btn.innerHTML = `<span id="btn-icon"><i data-lucide="zap" class="w-4 h-4"></i></span><span id="btn-text">Gợi Ý</span>`;
+    } else {
+      btn.innerHTML = `<i data-lucide="wand2" class="w-4 h-4"></i> Tạo Gợi Ý Cá Nhân Hóa Động`;
+    }
+    lucide.createIcons();
+  }
+}
+
+function showSkeleton(show) { document.getElementById('skeleton-list').className = show ? 'space-y-4 block' : 'hidden'; }
+function hideResults() { document.getElementById('result-header').className = 'hidden'; document.getElementById('genre-distribution-section').className = 'hidden'; document.getElementById('split-layout').className = 'hidden'; document.getElementById('trending-layout').className = 'hidden'; document.getElementById('core-container').innerHTML = ''; document.getElementById('discovery-container').innerHTML = ''; document.getElementById('trending-container').innerHTML = ''; }
+function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+let toastQueue = [];
+function showToast(type, title, message, duration = 4000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type} animate-toast-in`;
+  toast.style.top = `${1.5 + toastQueue.length * 5.5}rem`;
+  toast.innerHTML = `
+    <div class="flex-1 min-w-0">
+      <div class="font-display font-600 text-white text-sm">${escHtml(title)}</div>
+      <div class="text-slate-300 text-xs mt-0.5">${escHtml(message)}</div>
+    </div>
+  `;
+  container.appendChild(toast);
+  toastQueue.push(toast);
+  setTimeout(() => dismissToast(toast), duration);
+}
+function dismissToast(toast) {
+  toast.remove();
+  toastQueue = toastQueue.filter(t => t !== toast);
+}
+</script>
+</body>
+</html>
